@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { DateTimeRange } from "@/lib/types";
+import type { DateTimeRange, DateInterval } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -15,7 +15,7 @@ export function HeaderFilters({ onRangeChange, rangeValue }: Props) {
     rangeValue || {
       start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().slice(0, 16),
       end: new Date().toISOString().slice(0, 16),
-      interval: "day",
+      interval: "day" as DateInterval,
     }
   );
 

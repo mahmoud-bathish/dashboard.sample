@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { HeaderFilters } from "@/components/dashboard/HeaderFilters";
 import { SectionSalesPie } from "@/components/dashboard/SectionSalesPie";
 import { generateSalesForRange } from "@/lib/data";
-import type { DateTimeRange } from "@/lib/types";
+import type { DateTimeRange, DateInterval } from "@/lib/types";
 
 export default function Home() {
   const [range, setRange] = useState<DateTimeRange | undefined>(undefined);
@@ -13,7 +13,7 @@ export default function Home() {
       range || {
         start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().slice(0, 16),
         end: new Date().toISOString().slice(0, 16),
-        interval: "day",
+        interval: "day" as DateInterval,
       };
     return generateSalesForRange(r);
   }, [range]);
@@ -28,7 +28,7 @@ export default function Home() {
       <SectionSalesPie globalSales={sales} globalRange={range || {
         start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().slice(0, 16),
         end: new Date().toISOString().slice(0, 16),
-        interval: "day",
+        interval: "day" as DateInterval,
       }} />
     </div>
   );

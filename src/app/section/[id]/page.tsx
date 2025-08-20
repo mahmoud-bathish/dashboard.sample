@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
 import { aggregateMetrics, categories, generateSalesForRange, getCategoryName, getSectionName } from "@/lib/data";
-import type { DateTimeRange } from "@/lib/types";
+import type { DateTimeRange, DateInterval } from "@/lib/types";
 import { CategoryTopCard } from "@/components/dashboard/CategoryTopCard";
 
 export default function SectionDetailsPage() {
@@ -21,7 +21,7 @@ export default function SectionDetailsPage() {
     range || {
       start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().slice(0, 16),
       end: new Date().toISOString().slice(0, 16),
-      interval: "day",
+      interval: "day" as DateInterval,
     }
   ), [range]);
 
