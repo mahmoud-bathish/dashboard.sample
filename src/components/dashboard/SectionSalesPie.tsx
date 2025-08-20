@@ -3,20 +3,20 @@
 import { useMemo, useState } from "react";
 import { Pie, PieChart, Cell, Sector } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { aggregateMetrics, sections } from "@/lib/data";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { aggregateMetrics, generateSalesForRange, sections } from "@/lib/data";
 import { useRouter } from "next/navigation";
-import type { ItemSales } from "@/lib/types";
+import type { DateTimeRange, ItemSales } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Calendar as CalendarIcon, RotateCcw } from "lucide-react";
 
-type Props = { sales: ItemSales[] };
+type Props = { globalSales: ItemSales[]; globalRange: DateTimeRange };
 
-export function SectionSalesPie({ sales }: Props) {
+export function SectionSalesPie({ globalSales, globalRange }: Props) {
+  const [localRange, setLocalRange] = useState<DateTimeRange | undefined>(undefined);
+  const sales = useMemo(() => (localRange ? generateSalesForRange(localRange) : globalSales), [globalSales, localRange]);
   const metrics = useMemo(() => aggregateMetrics(sales), [sales]);
 
   const { data, config } = useMemo(() => {
@@ -70,8 +70,43 @@ export function SectionSalesPie({ sales }: Props) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Sales by Section</CardTitle>
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 max-w-full whitespace-nowrap">
+                <CalendarIcon className="h-4 w-4" />
+                <span className="truncate">{(localRange || globalRange).start.slice(0,10)} → {(localRange || globalRange).end.slice(0,10)}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[94vw] sm:w-auto max-w-[520px] p-3" align="end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="mb-1 text-xs text-muted-foreground">Start date</div>
+                  <Calendar
+                    mode="single"
+                    selected={new Date((localRange || globalRange).start)}
+                    onSelect={(d) => d && setLocalRange({ ...((localRange || globalRange) as DateTimeRange), start: new Date(d.setHours(0,0,0,0)).toISOString().slice(0,16) })}
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 text-xs text-muted-foreground">End date</div>
+                  <Calendar
+                    mode="single"
+                    selected={new Date((localRange || globalRange).end)}
+                    onSelect={(d) => d && setLocalRange({ ...((localRange || globalRange) as DateTimeRange), end: new Date(d.setHours(23,59,0,0)).toISOString().slice(0,16) })}
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          {localRange && (
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8" title="Reset to page range" onClick={() => setLocalRange(undefined)}>
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <ChartContainer config={config} className="relative mx-auto w-full max-w-[820px] h-[280px] sm:h-[380px] px-2 sm:px-0">
@@ -113,16 +148,13 @@ export function SectionSalesPie({ sales }: Props) {
               ))}
             </Pie>
             <ChartTooltip content={<ChartTooltipContent nameKey="name" labelKey="name" />} />
-            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
             <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="fill-foreground">
               <tspan className="text-[10px] sm:text-xs fill-muted-foreground" x="50%" dy="-0.4em">Total</tspan>
               <tspan className="font-semibold text-sm sm:text-base" x="50%" dy="1.2em">{totalUnits.toLocaleString()}</tspan>
             </text>
           </PieChart>
         </ChartContainer>
-        <div className="mt-3 text-xs sm:text-sm text-muted-foreground">
-          Click legend to focus a section; labels show share when large enough.
-        </div>
+        <div className="mt-3 text-xs sm:text-sm text-muted-foreground">Tap a slice to drill into the section.</div>
       </CardContent>
     </Card>
   );

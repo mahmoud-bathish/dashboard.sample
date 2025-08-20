@@ -37,29 +37,29 @@ export default function SectionDetailsPage() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{sectionName} — Top Items per Category</h1>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="relative w-full sm:w-[280px]">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search category..."
-              className="pl-8"
-            />
-            {query && (
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
-                onClick={() => setQuery("")}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+        <div className="relative w-full">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search category..."
+            className="pl-8"
+          />
+          {query && (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+              onClick={() => setQuery("")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <div>
           <HeaderFilters rangeValue={range} onRangeChange={setRange} />
         </div>
       </div>

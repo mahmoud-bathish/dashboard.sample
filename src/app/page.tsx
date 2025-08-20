@@ -25,7 +25,11 @@ export default function Home() {
         <HeaderFilters rangeValue={range} onRangeChange={setRange} />
       </div>
 
-      <SectionSalesPie sales={sales} />
+      <SectionSalesPie globalSales={sales} globalRange={range || {
+        start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().slice(0, 16),
+        end: new Date().toISOString().slice(0, 16),
+        interval: "day",
+      }} />
     </div>
   );
 }
