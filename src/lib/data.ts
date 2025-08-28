@@ -107,7 +107,26 @@ export const items: Item[] = categories.flatMap((cat) => {
     const product = pick(PRODUCT_WORDS);
     const name = `${descriptor} ${product}`;
     const unitCost = randomInt(1, 15);
-    const unitPrice = unitCost + randomInt(-1, 12);
+    
+    // Create more realistic profit scenarios
+    let unitPrice: number;
+    if (i === 0) {
+      // First item: high profit margin
+      unitPrice = unitCost + randomInt(8, 15);
+    } else if (i === 1) {
+      // Second item: moderate profit margin
+      unitPrice = unitCost + randomInt(3, 8);
+    } else if (i === 2) {
+      // Third item: low profit margin
+      unitPrice = unitCost + randomInt(1, 4);
+    } else if (i === 3) {
+      // Fourth item: break-even or slight loss
+      unitPrice = unitCost + randomInt(-2, 2);
+    } else {
+      // Fifth item: potential loss
+      unitPrice = unitCost + randomInt(-5, 0);
+    }
+    
     list.push({
       id: `${cat.id}-item-${i + 1}`,
       name,

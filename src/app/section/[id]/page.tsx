@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { HeaderFilters } from "@/components/dashboard/HeaderFilters";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,9 @@ import { aggregateMetrics, categories, generateSalesForRange, getCategoryName, g
 import type { DateTimeRange, DateInterval } from "@/lib/types";
 import { CategoryTopCard } from "@/components/dashboard/CategoryTopCard";
 
+// Cache for sales data to avoid regeneration
+const salesCache = new Map<string, any>();
+
 export default function SectionDetailsPage() {
   const params = useParams<{ id: string }>();
   const sectionId = params?.id;
@@ -17,6 +20,7 @@ export default function SectionDetailsPage() {
 
   const [range, setRange] = useState<DateTimeRange | undefined>(undefined);
   const [query, setQuery] = useState<string>("");
+  
   const currentRange = useMemo(() => (
     range || {
       start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().slice(0, 16),
@@ -25,15 +29,58 @@ export default function SectionDetailsPage() {
     }
   ), [range]);
 
-  const sales = useMemo(() => generateSalesForRange(currentRange), [currentRange]);
-  const metrics = useMemo(() => aggregateMetrics(sales).filter((m) => m.sectionId === sectionId), [sales, sectionId]);
+  // Optimized sales generation with caching
+  const sales = useMemo(() => {
+    const cacheKey = `${currentRange.start}-${currentRange.end}-${currentRange.interval}`;
+    
+    if (salesCache.has(cacheKey)) {
+      return salesCache.get(cacheKey);
+    }
+    
+    const generatedSales = generateSalesForRange(currentRange);
+    salesCache.set(cacheKey, generatedSales);
+    
+    // Limit cache size to prevent memory issues
+    if (salesCache.size > 10) {
+      const firstKey = salesCache.keys().next().value;
+      salesCache.delete(firstKey);
+    }
+    
+    return generatedSales;
+  }, [currentRange]);
 
-  const categoriesInSection = useMemo(() => categories.filter((c) => c.sectionId === sectionId), [sectionId]);
+  // Memoize metrics calculation
+  const metrics = useMemo(() => {
+    if (!sales || !sectionId) return [];
+    return aggregateMetrics(sales).filter((m) => m.sectionId === sectionId);
+  }, [sales, sectionId]);
+
+  // Memoize categories filtering
+  const categoriesInSection = useMemo(() => 
+    categories.filter((c) => c.sectionId === sectionId), 
+    [sectionId]
+  );
+  
   const filteredCategories = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return categoriesInSection;
     return categoriesInSection.filter((c) => c.name.toLowerCase().includes(q));
   }, [categoriesInSection, query]);
+
+  // Memoize the range change handler
+  const handleRangeChange = useCallback((newRange: DateTimeRange | undefined) => {
+    setRange(newRange);
+  }, []);
+
+  // Memoize the query change handler
+  const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value);
+  }, []);
+
+  // Memoize the clear query handler
+  const handleClearQuery = useCallback(() => {
+    setQuery("");
+  }, []);
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -43,7 +90,7 @@ export default function SectionDetailsPage() {
           <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={handleQueryChange}
             placeholder="Search category..."
             className="pl-8"
           />
@@ -53,14 +100,14 @@ export default function SectionDetailsPage() {
               size="icon"
               variant="ghost"
               className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
-              onClick={() => setQuery("")}
+              onClick={handleClearQuery}
             >
               <X className="h-4 w-4" />
             </Button>
           )}
         </div>
         <div>
-          <HeaderFilters rangeValue={range} onRangeChange={setRange} />
+          <HeaderFilters rangeValue={range} onRangeChange={handleRangeChange} />
         </div>
       </div>
 
@@ -74,7 +121,6 @@ export default function SectionDetailsPage() {
             categoryName={getCategoryName(cat.id)}
             sectionId={sectionId}
             globalSales={sales}
-            globalRange={currentRange}
           />
         ))}
       </div>

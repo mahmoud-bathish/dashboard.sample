@@ -1,130 +1,379 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { aggregateMetrics, items } from "@/lib/data";
+import type { ItemSales } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Calendar as CalendarIcon, Clock } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { aggregateMetrics, generateSalesForRange } from "@/lib/data";
-import type { DateTimeRange, ItemSales } from "@/lib/types";
+import { BarChart3, TrendingUp, DollarSign } from "lucide-react";
 
 type Props = {
   categoryId: string;
   categoryName: string;
   sectionId: string;
   globalSales: ItemSales[];
-  globalRange: DateTimeRange;
 };
 
-export function CategoryTopCard({ categoryId, categoryName, sectionId, globalSales, globalRange }: Props) {
-  const [localRange, setLocalRange] = useState<DateTimeRange | undefined>(undefined);
+type MetricType = "quantity" | "revenue" | "profit";
+type DisplayMode = "values" | "percentages";
 
-  const sales = useMemo(() => {
-    if (!localRange) return globalSales;
-    return generateSalesForRange(localRange);
-  }, [globalSales, localRange]);
+export function CategoryTopCard({ categoryId, categoryName, sectionId, globalSales }: Props) {
+  const [metricType, setMetricType] = useState<MetricType>("quantity");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("values");
 
-  const metricsInCat = useMemo(
-    () => aggregateMetrics(sales).filter((m) => m.categoryId === categoryId),
-    [sales, categoryId]
-  );
+  const { topItems, totalValue, categoryTotal } = useMemo(() => {
+    console.log('CategoryTopCard Data Debug:', {
+      categoryId,
+      categoryName,
+      globalSalesLength: globalSales.length,
+      sectionId
+    });
 
-  const byUnits = useMemo(
-    () => metricsInCat.slice().sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 5).map((m) => ({ name: m.name, value: m.unitsSold })),
-    [metricsInCat]
-  );
-  const byRevenue = useMemo(
-    () => metricsInCat.slice().sort((a, b) => b.revenue - a.revenue).slice(0, 5).map((m) => ({ name: m.name, value: Number(m.revenue.toFixed(2)) })),
-    [metricsInCat]
-  );
+    // Get all items in this category first
+    const categoryItems = items.filter(item => item.categoryId === categoryId);
+    console.log('Category items found:', categoryItems.length);
 
-  const current = localRange || globalRange;
+    // Get all sales for this category
+    const categorySales = globalSales.filter(sale => {
+      const item = items.find(i => i.id === sale.itemId);
+      const matches = item && item.categoryId === categoryId;
+      if (matches) {
+        console.log('Found matching sale:', { sale, item });
+      }
+      return matches;
+    });
+
+    console.log('Category sales found:', categorySales.length);
+
+    // Get metrics for this category
+    const metrics = aggregateMetrics(categorySales);
+    console.log('Aggregated metrics:', metrics);
+
+    const categoryMetrics = metrics.filter(m => m.categoryId === categoryId);
+    console.log('Category metrics:', categoryMetrics);
+
+    if (categoryMetrics.length === 0) {
+      console.log('No category metrics found!');
+      return { topItems: [], totalValue: 0, categoryTotal: 0 };
+    }
+
+    // Calculate total for the entire category (all items, not just top 5)
+    const totalCategoryValue = categoryMetrics.reduce((sum, item) => {
+      switch (metricType) {
+        case "quantity":
+          return sum + item.unitsSold;
+        case "revenue":
+          return sum + item.revenue;
+        case "profit":
+          return sum + item.profit;
+        default:
+          return sum + item.unitsSold;
+      }
+    }, 0);
+
+    // Get the top 5 items by the selected metric
+    let sortedItems: typeof categoryMetrics;
+    switch (metricType) {
+      case "quantity":
+        sortedItems = [...categoryMetrics].sort((a, b) => b.unitsSold - a.unitsSold);
+        break;
+      case "revenue":
+        sortedItems = [...categoryMetrics].sort((a, b) => b.revenue - a.revenue);
+        break;
+      case "profit":
+        sortedItems = [...categoryMetrics].sort((a, b) => b.profit - a.profit);
+        break;
+      default:
+        sortedItems = [...categoryMetrics].sort((a, b) => b.unitsSold - a.unitsSold);
+    }
+
+    const top5 = sortedItems.slice(0, 5);
+    console.log('Top 5 items:', top5);
+
+    // Calculate total for top 5 items
+    const top5Total = top5.reduce((sum, item) => {
+      switch (metricType) {
+        case "quantity":
+          return sum + item.unitsSold;
+        case "revenue":
+          return sum + item.revenue;
+        case "profit":
+          return sum + item.profit;
+        default:
+          return sum + item.unitsSold;
+      }
+    }, 0);
+
+    // Convert to percentages if needed (based on category total, not top 5 total)
+    if (displayMode === "percentages" && totalCategoryValue > 0) {
+      top5.forEach(item => {
+        let value: number;
+        switch (metricType) {
+          case "quantity":
+            value = item.unitsSold;
+            break;
+          case "revenue":
+            value = item.revenue;
+            break;
+          case "profit":
+            value = item.profit;
+            break;
+          default:
+            value = item.unitsSold;
+        }
+        // Add percentage to the item object
+        (item as any).percentage = (value / totalCategoryValue) * 100;
+      });
+    }
+
+    console.log('Final result:', { topItems: top5, totalValue: top5Total, categoryTotal: totalCategoryValue });
+    return { 
+      topItems: top5, 
+      totalValue: top5Total, 
+      categoryTotal: totalCategoryValue 
+    };
+  }, [categoryId, globalSales, metricType, displayMode]);
+
+  const chartData = topItems.map((item, index) => {
+    let value: number;
+    if (displayMode === "percentages") {
+      value = (item as any).percentage || 0;
+    } else {
+      switch (metricType) {
+        case "quantity":
+          value = item.unitsSold;
+          break;
+        case "revenue":
+          value = item.revenue;
+          break;
+        case "profit":
+          value = item.profit;
+          break;
+        default:
+          value = item.unitsSold;
+      }
+    }
+
+    return {
+      name: item.name, // Use item.name instead of item.itemName
+      value,
+      rawValue: value,
+      color: `hsl(var(--chart-${(index % 5) + 1}))`,
+    };
+  });
+
+  // Debug logging to see what's happening
+  console.log('CategoryTopCard Chart Debug:', {
+    categoryId,
+    categoryName,
+    topItems: topItems.length,
+    chartData,
+    metricType,
+    displayMode,
+    totalValue,
+    categoryTotal
+  });
+
+  // Ensure we have data to display
+  if (chartData.length === 0) {
+    console.log('No chart data available!');
+  }
+
+  const formatTotal = (value: number) => {
+    if (displayMode === "percentages") {
+      // Show total percentage of top 5 items relative to category total
+      const top5Percentage = (totalValue / categoryTotal) * 100;
+      return `${top5Percentage.toFixed(1)}% of category`;
+    }
+    
+    switch (metricType) {
+      case "quantity":
+        return value.toLocaleString();
+      case "revenue":
+        return `$${value.toLocaleString()}`;
+      case "profit":
+        return `$${value.toLocaleString()}`;
+      default:
+        return value.toLocaleString();
+    }
+  };
+
+  const getMetricLabel = () => {
+    switch (metricType) {
+      case "quantity": return "Units";
+      case "revenue": return "Revenue";
+      case "profit": return "Profit";
+      default: return "Units";
+    }
+  };
+
+  if (topItems.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">{categoryName}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-muted-foreground text-center py-8">
+            No data available for this category
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
-      <CardHeader className="space-y-2">
-        <CardTitle className="text-base">{categoryName}</CardTitle>
-        <div className="flex flex-wrap items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 max-w-full whitespace-nowrap">
-                <CalendarIcon className="h-4 w-4" />
-                <span className="truncate">{current.start.slice(0, 10)} → {current.end.slice(0, 10)}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[94vw] sm:w-auto max-w-[520px] p-3" align="start">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="mb-1 text-xs text-muted-foreground">Start date</div>
-                  <Calendar
-                    mode="single"
-                    selected={new Date(current.start)}
-                    onSelect={(d) => d && setLocalRange({ ...(current as DateTimeRange), start: new Date(d.setHours(0,0,0,0)).toISOString().slice(0,16) })}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 text-xs text-muted-foreground">End date</div>
-                  <Calendar
-                    mode="single"
-                    selected={new Date(current.end)}
-                    onSelect={(d) => d && setLocalRange({ ...(current as DateTimeRange), end: new Date(d.setHours(23,59,0,0)).toISOString().slice(0,16) })}
-                  />
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">Start time</Label>
-                  <Input type="time" value={current.start.slice(11,16)} onChange={(e) => setLocalRange({ ...(current as DateTimeRange), start: `${current.start.slice(0,10)}T${e.target.value}` })} className="h-8 max-w-[140px]" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">End time</Label>
-                  <Input type="time" value={current.end.slice(11,16)} onChange={(e) => setLocalRange({ ...(current as DateTimeRange), end: `${current.end.slice(0,10)}T${e.target.value}` })} className="h-8 max-w-[140px]" />
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-          {localRange && (
-            <Button type="button" size="icon" variant="ghost" className="h-8 w-8" title="Reset to page range" onClick={() => setLocalRange(undefined)}>
-              <RotateCcw className="h-4 w-4" />
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">{categoryName}</CardTitle>
+        <div className="flex flex-col gap-2">
+          <Tabs value={metricType} onValueChange={(v) => setMetricType(v as MetricType)} className="w-full">
+            <TabsList className="grid grid-cols-3 h-8">
+              <TabsTrigger value="quantity" className="text-xs px-2">
+                <BarChart3 className="h-3 w-3 mr-1" />
+                Qty
+              </TabsTrigger>
+              <TabsTrigger value="revenue" className="text-xs px-2">
+                <DollarSign className="h-3 w-3 mr-1" />
+                Rev
+              </TabsTrigger>
+              <TabsTrigger value="profit" className="text-xs px-2">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                Profit
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          <div className="flex items-center gap-1">
+            <Button
+              variant={displayMode === "values" ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => setDisplayMode("values")}
+            >
+              Values
             </Button>
-          )}
+            <Button
+              variant={displayMode === "percentages" ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => setDisplayMode("percentages")}
+            >
+              %
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="units">
-          <TabsList className="grid grid-cols-2 mb-2">
-            <TabsTrigger value="units">Units</TabsTrigger>
-            <TabsTrigger value="revenue">Revenue</TabsTrigger>
-          </TabsList>
-          <TabsContent value="units">
-            <ChartContainer config={{ value: { label: "Units", color: "hsl(var(--chart-1))" } }} className="w-full h-[200px] sm:h-[240px] px-2 sm:px-0">
-              <BarChart data={byUnits} margin={{ left: 0, right: 0 }} barGap={4} barCategoryGap="12%">
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="name" type="category" tickLine={false} axisLine={false} hide padding={{ left: 8, right: 8 }} allowDuplicatedCategory={false} />
-                <YAxis tickLine={false} axisLine={false} width={32} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" fill="var(--color-value)" radius={4} />
-              </BarChart>
-            </ChartContainer>
-          </TabsContent>
-          <TabsContent value="revenue">
-            <ChartContainer config={{ value: { label: "Revenue", color: "hsl(var(--chart-2))" } }} className="w-full h-[200px] sm:h-[240px] px-2 sm:px-0">
-              <BarChart data={byRevenue} margin={{ left: 0, right: 0 }} barGap={4} barCategoryGap="12%">
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="name" type="category" tickLine={false} axisLine={false} hide padding={{ left: 8, right: 8 }} allowDuplicatedCategory={false} />
-                <YAxis tickLine={false} axisLine={false} width={32} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" fill="var(--color-value)" radius={4} />
-              </BarChart>
-            </ChartContainer>
-          </TabsContent>
-        </Tabs>
+      <CardContent className="pt-0">
+        <div className="space-y-3">
+          <div className="text-center">
+            <div className="text-xs text-muted-foreground">Top 5 Items - {getMetricLabel()}</div>
+            <div className="text-lg font-semibold">{formatTotal(totalValue)}</div>
+          </div>
+          
+          <div className="h-[240px] w-full">
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                  <XAxis 
+                    dataKey="name" 
+                    type="category"
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    padding={{ left: 8, right: 8 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis 
+                    type="number"
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={40}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length > 0) {
+                        const data = payload[0].payload;
+                        const itemName = data.name;
+                        const value = data.rawValue;
+                        
+                        let formattedValue: string;
+                        let metricLabel: string;
+                        
+                        if (displayMode === "percentages") {
+                          formattedValue = `${value.toFixed(1)}%`;
+                          metricLabel = "Category Share";
+                        } else {
+                          switch (metricType) {
+                            case "quantity":
+                              formattedValue = value.toLocaleString();
+                              metricLabel = "Units";
+                              break;
+                            case "revenue":
+                              formattedValue = `$${value.toLocaleString()}`;
+                              metricLabel = "Revenue";
+                              break;
+                            case "profit":
+                              formattedValue = `$${value.toLocaleString()}`;
+                              metricLabel = "Profit";
+                              break;
+                            default:
+                              formattedValue = value.toLocaleString();
+                              metricLabel = "Units";
+                          }
+                        }
+                        
+                        return (
+                          <div className="bg-background border rounded-lg shadow-lg p-2 space-y-1">
+                            <div className="font-medium text-foreground text-xs">{itemName}</div>
+                            <div className="text-xs">
+                              <span className="text-muted-foreground">{metricLabel}: </span>
+                              <span className="font-medium text-foreground">{formattedValue}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              // Fallback with sample data to ensure chart renders
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center space-y-2">
+                  <div className="text-sm text-muted-foreground">No data available</div>
+                  <div className="text-xs text-muted-foreground">
+                    Debug: {topItems.length} items, {metricType}, {displayMode}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Chart data length: {chartData.length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Top items: {JSON.stringify(topItems.map(i => ({ name: i.name, value: i.unitsSold })))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="text-xs text-muted-foreground text-center">
+            {displayMode === "percentages" 
+              ? `Top 5 items represent ${((totalValue / categoryTotal) * 100).toFixed(1)}% of category total`
+              : `Showing top 5 of ${topItems.length + Math.max(0, Math.floor(categoryTotal / totalValue * 5) - 5)} items`
+            }
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
